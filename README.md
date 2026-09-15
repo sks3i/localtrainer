@@ -1,23 +1,41 @@
-# train_utils
+# localtrainer
 
 A modular, reusable fine-tuning framework for LLMs and VLMs on a local RTX 4090.
 Supports SFT and DPO (extensible to GRPO, PPO, etc.) via a single YAML config.
 
 Built on PyTorch, [Unsloth](https://github.com/unslothai/unsloth), HuggingFace Transformers, TRL, and W&B.
 
+**GitHub:** [github.com/sks3i/localtrainer](https://github.com/sks3i/localtrainer)
+
 ---
 
 ## Installation
 
-Install the package in editable mode once from the `all_in` root.
-After this, `train_utils` is importable from any project on the machine.
+### Option A — install from GitHub (recommended for projects)
+
+Pin to a specific release tag so your project is fully reproducible:
 
 ```bash
-cd ~/Projects/all_in
+pip install "train_utils @ git+https://github.com/sks3i/localtrainer.git@v0.1.0"
+```
+
+Or add to your project's `requirements.txt`:
+
+```
+train_utils @ git+https://github.com/sks3i/localtrainer.git@v0.1.0
+```
+
+### Option B — editable install for local development
+
+```bash
+git clone https://github.com/sks3i/localtrainer.git
+cd localtrainer
 pip install -e .
 ```
 
-Install Unsloth separately with the correct CUDA + PyTorch variant for your system:
+### Install Unsloth
+
+Install separately with the correct CUDA + PyTorch variant for your system:
 
 ```bash
 # CUDA 12.1 + PyTorch 2.3.0 (recommended for RTX 4090)
@@ -59,7 +77,7 @@ run("/path/to/my_project/configs/run.yaml")
 ## Project layout
 
 ```
-all_in/
+localtrainer/
 ├── pyproject.toml
 ├── requirements.txt
 ├── configs/                        # Example YAML run configs
@@ -91,9 +109,9 @@ all_in/
 
 ---
 
-## Using train_utils from another project
+## Using localtrainer from another project
 
-Install once (see above), then create a YAML config and call `run()`:
+Install (see above), then create a YAML config and call `run()`:
 
 ```
 ~/Projects/my_robot_vla/
