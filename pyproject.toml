@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "localtrainer"
+version = "0.1.0"
+description = "Modular SFT and RL fine-tuning framework for LLMs and VLMs on a single local GPU."
+requires-python = ">=3.10"
+dependencies = [
+	"torch>=2.3.0",
+	"transformers>=4.43.0",
+	"trl>=0.9.0",
+	"peft>=0.11.0",
+	"datasets>=2.20.0",
+	"accelerate>=0.31.0",
+	"bitsandbytes>=0.43.0",
+	"wandb>=0.17.0",
+	"pyyaml>=6.0.1",
+	"dacite>=1.8.1",
+]
+
+[project.optional-dependencies]
+unsloth = ["unsloth[cu121-torch230]"]
+
+[project.scripts]
+train = "train_utils.train:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["train_utils*"]

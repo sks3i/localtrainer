@@ -1,0 +1,67 @@
+# SFT example: fine-tune LLaMA-3.1-8B on a small instruction dataset
+# Run with: train configs/sft_example.yaml
+
+trainer_type: sft
+run_name: llama3-sft-guanaco
+output_dir: outputs/llama3-sft-guanaco
+wandb_project: train_utils
+wandb_entity: null  # set to your wandb username/team or leave null for default
+
+model:
+  model_id: unsloth/Meta-Llama-3.1-8B-Instruct
+  use_unsloth: true
+  max_seq_length: 2048
+  dtype: null  # auto-detect (bfloat16 on RTX 4090)
+  attn_implementation: flash_attention_2
+  trust_remote_code: false
+  lora:
+    use_lora: true
+    r: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    bias: none
+    use_rslora: false
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+      - gate_proj
+      - up_proj
+      - down_proj
+  quantization:
+    load_in_4bit: true
+    bnb_4bit_quant_type: nf4
+    bnb_4bit_compute_dtype: bfloat16
+    bnb_4bit_use_double_quant: true
+
+sft:
+  dataset_id: mlabonne/guanaco-llama2-1k
+  dataset_split: train
+  eval_dataset_split: null
+  text_field: text
+  use_chat_template: false
+  packing: true
+  max_num_samples: null
+
+training:
+  num_train_epochs: 3
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 2
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  lr_scheduler_type: cosine
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  logging_steps: 10
+  save_steps: 100
+  eval_steps: 100
+  save_total_limit: 3
+  seed: 42
+  bf16: true
+  fp16: false
+  gradient_checkpointing: true
+  torch_compile: false
+  dataloader_num_workers: 4
+  report_to: wandb
