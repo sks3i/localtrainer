@@ -22,6 +22,7 @@ from pathlib import Path
 from train_utils.configs.base_config import RunConfig
 from train_utils.data.dpo_dataset import DPODataset
 from train_utils.data.sft_dataset import SFTDataset
+from train_utils.data.vlm_dataset import VLMSFTDataset
 from train_utils.models.loader import load_model_and_tokenizer
 from train_utils.models.lora import apply_lora
 from train_utils.trainers.registry import build_trainer
@@ -39,6 +40,7 @@ logger = logging.getLogger(__name__)
 _DATASET_MAP = {
 	"sft": SFTDataset,
 	"dpo": DPODataset,
+	"vlm_sft": VLMSFTDataset,
 }
 
 
@@ -89,6 +91,30 @@ def _build_dataset(config: RunConfig, tokenizer) -> object:
 	return dataset_cls(config, tokenizer)
 
 
+def run_vlm(config: RunConfig, callbacks: list | None = None, callback_factory=None) -> None:
+	"""Image + text SFT (``trainer_type: vlm_sft``) from an already loaded config.
+
+	Models load through a VLM adapter (``model.vlm_adapter``) instead of AutoModelForCausalLM,
+	because each VLM family has its own processor and image inputs.
+
+	Args:
+		config: Resolved run config with ``vlm_sft`` set.
+		callbacks: Extra ``transformers.TrainerCallback`` instances.
+		callback_factory: Optional ``f(adapter) -> list[TrainerCallback]`` for callbacks that need the
+		    loaded adapter, e.g. a task metric that decodes with the model's processor.
+	"""
+	from train_utils.vlm import build_adapter, prepare_vlm_for_training
+
+	vcfg = config.vlm_sft
+	adapter = build_adapter(config.model, max_image_side=vcfg.max_image_side, image_root=vcfg.image_root)
+	model, processor = adapter.load()
+	model = prepare_vlm_for_training(model, config.model)
+	dataset = VLMSFTDataset(config, processor)
+	callbacks = list(callbacks or []) + (callback_factory(adapter) if callback_factory else [])
+	trainer = build_trainer(config, model, processor, dataset, adapter=adapter, callbacks=callbacks)
+	trainer.train()
+
+
 def run(config_path: str | Path) -> None:
 	"""Execute a full training run from a YAML config path.
 
@@ -105,6 +131,9 @@ def run(config_path: str | Path) -> None:
 	"""
 	config: RunConfig = load_yaml_config(config_path)
 	logger.info("trainer_type=%s | model=%s | output_dir=%s", config.trainer_type, config.model.model_id, config.output_dir)
+	if config.trainer_type == "vlm_sft":
+		run_vlm(config)
+		return
 
 	model, tokenizer = load_model_and_tokenizer(config.model)
 	model = apply_lora(model, config.model.lora, use_unsloth=config.model.use_unsloth)

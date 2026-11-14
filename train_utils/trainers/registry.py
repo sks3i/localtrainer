@@ -32,10 +32,12 @@ def _import_trainers() -> dict[str, type[BaseTrainer]]:
 	"""
 	from train_utils.trainers.dpo_trainer import DPOTrainer
 	from train_utils.trainers.sft_trainer import SFTTrainer
+	from train_utils.trainers.vlm_sft_trainer import VLMSFTTrainer
 
 	return {
 		"sft": SFTTrainer,
 		"dpo": DPOTrainer,
+		"vlm_sft": VLMSFTTrainer,
 	}
 
 
@@ -48,6 +50,7 @@ def build_trainer(
 	model: PreTrainedModel,
 	tokenizer: PreTrainedTokenizerBase,
 	dataset: BaseDataset,
+	**kwargs,
 ) -> BaseTrainer:
 	"""Instantiate the correct trainer for the given :class:`RunConfig`.
 
@@ -59,6 +62,7 @@ def build_trainer(
 		model: Model with LoRA adapters applied.
 		tokenizer: Matching tokenizer.
 		dataset: Dataset adapter for this run.
+		**kwargs: Trainer-specific extras (``vlm_sft`` takes ``adapter`` and ``callbacks``).
 
 	Returns:
 		A fully initialised :class:`BaseTrainer` subclass.
@@ -79,4 +83,4 @@ def build_trainer(
 			f"Available trainers: {available}"
 		)
 	logger.info("Instantiating trainer: %s", trainer_cls.__name__)
-	return trainer_cls(config, model, tokenizer, dataset)
+	return trainer_cls(config, model, tokenizer, dataset, **kwargs)
