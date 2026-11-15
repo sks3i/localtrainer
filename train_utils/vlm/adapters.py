@@ -203,8 +203,37 @@ class HFChatVLMAdapter(VLMAdapter):
 		tok.padding_side = padding_side
 		try:
 			return proc(text=texts, images=images, return_tensors="pt", padding=True)
+		except ValueError as e:
+			# Seen once after ~1k good batches: the fast tokenizer returned unpadded rows ("expected
+			# sequence of length 439 (got 440)") and the same batch then worked on retry. Fall back to
+			# one processor call per example and pad here.
+			logger.warning("batched processor call failed (%s); padding per example", e)
+			return self._pad_rows([proc(text=[t], images=[im], return_tensors="pt") for t, im in zip(texts, images)], padding_side)
 		finally:
 			tok.padding_side = old
+
+	def _pad_rows(self, rows: list, padding_side: str):
+		"""Merge single-example processor outputs: per-token tensors (1, L, ...) are padded to the
+		longest L (input_ids with the pad id, everything else with 0); image tensors are concatenated."""
+		from transformers import BatchFeature
+
+		pad_id = self.processor.tokenizer.pad_token_id
+		L = max(r["input_ids"].shape[1] for r in rows)
+		out = {}
+		for k in rows[0].keys():
+			vs = [r[k] for r in rows]
+			if torch.is_tensor(vs[0]) and vs[0].dim() >= 2 and vs[0].shape[:2] == rows[0]["input_ids"].shape:
+				padded = []
+				for r, v in zip(rows, vs):
+					n = L - v.shape[1]
+					fill = v.new_full((1, n, *v.shape[2:]), pad_id if k == "input_ids" else 0)
+					padded.append(torch.cat([fill, v] if padding_side == "left" else [v, fill], dim=1))
+				out[k] = torch.cat(padded, dim=0)
+			elif torch.is_tensor(vs[0]):
+				out[k] = torch.cat(vs, dim=0)
+			else:
+				out[k] = vs
+		return BatchFeature(out)
 
 	@torch.no_grad()
 	def sample(self, model, examples: list[dict], max_new_tokens: int, do_sample: bool = True, temperature: float = 1.0, top_p: float = 1.0, top_k: int = 0) -> list[list[int]]:
