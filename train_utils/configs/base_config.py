@@ -8,9 +8,10 @@ from typing import Literal, Optional
 from train_utils.configs.dpo_config import DPOConfig
 from train_utils.configs.model_config import ModelConfig
 from train_utils.configs.sft_config import SFTConfig
+from train_utils.configs.vlm_grpo_config import VLMGRPOConfig
 from train_utils.configs.vlm_sft_config import VLMSFTConfig
 
-TrainerType = Literal["sft", "dpo", "vlm_sft"]
+TrainerType = Literal["sft", "dpo", "vlm_sft", "vlm_grpo"]
 
 
 @dataclass
@@ -72,12 +73,13 @@ class RunConfig:
 	"""Top-level config for a single training run.
 
 	Attributes:
-		trainer_type: Which training algorithm to use — "sft" | "dpo" | "vlm_sft".
+		trainer_type: Which training algorithm to use — "sft" | "dpo" | "vlm_sft" | "vlm_grpo".
 		model: Model and adapter configuration.
 		training: Generic training hyperparameters.
 		sft: SFT-specific config. Required when trainer_type == "sft".
 		dpo: DPO-specific config. Required when trainer_type == "dpo".
 		vlm_sft: Image + text SFT config. Required when trainer_type == "vlm_sft".
+		vlm_grpo: Image + text GRPO config. Required when trainer_type == "vlm_grpo".
 		output_dir: Local directory where checkpoints and final weights are saved.
 		run_name: Human-readable identifier for the run (used in W&B and checkpoint paths).
 		wandb_project: W&B project name. Ignored when training.report_to != "wandb".
@@ -90,6 +92,7 @@ class RunConfig:
 	sft: Optional[SFTConfig] = field(default_factory=SFTConfig)
 	dpo: Optional[DPOConfig] = None
 	vlm_sft: Optional[VLMSFTConfig] = None
+	vlm_grpo: Optional[VLMGRPOConfig] = None
 	output_dir: str = "outputs/"
 	run_name: str = "run"
 	wandb_project: Optional[str] = "train_utils"

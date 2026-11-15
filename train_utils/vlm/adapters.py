@@ -193,6 +193,90 @@ class HFChatVLMAdapter(VLMAdapter):
 		model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
 		model.config.use_cache = False
 
+	# --- RL (vlm_grpo): batched sampling, then scoring the sampled tokens ---------------------
+
+	def _prompt_batch(self, examples: list[dict], padding_side: str):
+		proc, tok = self.processor, self.processor.tokenizer
+		texts = [proc.apply_chat_template(self._messages(ex["prompt"], None), add_generation_prompt=True, tokenize=False) for ex in examples]
+		images = [[self.load_image(ex["image"])] for ex in examples]
+		old = tok.padding_side
+		tok.padding_side = padding_side
+		try:
+			return proc(text=texts, images=images, return_tensors="pt", padding=True)
+		finally:
+			tok.padding_side = old
+
+	@torch.no_grad()
+	def sample(self, model, examples: list[dict], max_new_tokens: int, do_sample: bool = True, temperature: float = 1.0, top_p: float = 1.0, top_k: int = 0) -> list[list[int]]:
+		"""One completion per example, as token ids up to and including the first end token.
+
+		Batched generation needs LEFT padding: every row's next token is then predicted at the same
+		last position. Every sampling knob is passed explicitly, because generate() otherwise falls
+		back to the checkpoint's generation_config (Qwen3-VL ships top_k=20, top_p=0.8, T=0.7), and
+		the trainer's log-probs would then refer to a different distribution than the one sampled.
+		"""
+		batch = self._prompt_batch(examples, "left").to(model.device)
+		kw = {"do_sample": do_sample}
+		if do_sample:
+			kw.update(temperature=temperature, top_p=top_p, top_k=top_k)
+		else:
+			kw.update(temperature=None, top_p=None, top_k=None)
+		tok = self.processor.tokenizer
+		out = model.generate(**batch, max_new_tokens=max_new_tokens, use_cache=True, pad_token_id=tok.pad_token_id, **kw)
+		new = out[:, batch["input_ids"].shape[1] :].tolist()
+		ends = set(self._end_ids(model))
+		completions = []
+		for row in new:
+			cut = next((i + 1 for i, t in enumerate(row) if t in ends), len(row))
+			completions.append(row[:cut])
+		return completions
+
+	def _end_ids(self, model) -> list[int]:
+		eos = model.generation_config.eos_token_id
+		ids = list(eos) if isinstance(eos, (list, tuple)) else ([eos] if eos is not None else [])
+		return ids or ([self.end_id] if self.end_id is not None else [])
+
+	def decode(self, ids: list[int]) -> str:
+		return self.processor.decode(ids, skip_special_tokens=True)
+
+	def policy_inputs(self, examples: list[dict], completions: list[list[int]]) -> dict[str, torch.Tensor]:
+		"""Model inputs for prompt + sampled completion, plus ``completion_mask``.
+
+		The completion is appended as token ids, not re-tokenized text: decode -> encode does not
+		round-trip exactly with BPE, and the log-probs must be of the tokens that were sampled.
+		Image tensors are unchanged by appending text after the prompt, so they come straight from the
+		processor. ``completion_mask[b, t]`` is 1 where input_ids[b, t] is a sampled token, so the
+		log-prob of that token is read from the logits at t - 1.
+		"""
+		pb = self._prompt_batch(examples, "right")
+		pad = self.processor.tokenizer.pad_token_id
+		lens = pb["attention_mask"].sum(1).tolist()
+		T = max(n + len(c) for n, c in zip(lens, completions))
+		B = len(examples)
+		ids = torch.full((B, T), pad, dtype=pb["input_ids"].dtype)
+		attn = torch.zeros((B, T), dtype=pb["attention_mask"].dtype)
+		cmask = torch.zeros((B, T), dtype=torch.bool)
+		for b, (n, c) in enumerate(zip(lens, completions)):
+			ids[b, :n] = pb["input_ids"][b, :n]
+			ids[b, n : n + len(c)] = torch.tensor(c, dtype=ids.dtype)
+			attn[b, : n + len(c)] = 1
+			cmask[b, n : n + len(c)] = True
+		from transformers import BatchFeature
+
+		batch = {}
+		for k, v in pb.items():
+			if k in ("input_ids", "attention_mask"):
+				continue
+			if torch.is_tensor(v) and v.shape[:2] == pb["input_ids"].shape:
+				# Per-token side inputs (e.g. Qwen3-VL's mm_token_type_ids): completion tokens are text, 0.
+				ext = v.new_zeros((B, T, *v.shape[2:]))
+				for b, n in enumerate(lens):
+					ext[b, :n] = v[b, :n]
+				v = ext
+			batch[k] = v
+		batch.update(input_ids=ids, attention_mask=attn, completion_mask=cmask)
+		return BatchFeature(batch)
+
 
 class MolmoAdapter(VLMAdapter):
 	"""allenai/Molmo (remote code). Needs the transformers version its remote code was written for.

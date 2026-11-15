@@ -22,7 +22,7 @@ from pathlib import Path
 from train_utils.configs.base_config import RunConfig
 from train_utils.data.dpo_dataset import DPODataset
 from train_utils.data.sft_dataset import SFTDataset
-from train_utils.data.vlm_dataset import VLMSFTDataset
+from train_utils.data.vlm_dataset import VLMGRPODataset, VLMSFTDataset
 from train_utils.models.loader import load_model_and_tokenizer
 from train_utils.models.lora import apply_lora
 from train_utils.trainers.registry import build_trainer
@@ -92,24 +92,25 @@ def _build_dataset(config: RunConfig, tokenizer) -> object:
 
 
 def run_vlm(config: RunConfig, callbacks: list | None = None, callback_factory=None) -> None:
-	"""Image + text SFT (``trainer_type: vlm_sft``) from an already loaded config.
+	"""Image + text SFT or GRPO (``trainer_type: vlm_sft | vlm_grpo``) from an already loaded config.
 
 	Models load through a VLM adapter (``model.vlm_adapter``) instead of AutoModelForCausalLM,
 	because each VLM family has its own processor and image inputs.
 
 	Args:
-		config: Resolved run config with ``vlm_sft`` set.
+		config: Resolved run config with ``vlm_sft`` (or ``vlm_grpo``) set.
 		callbacks: Extra ``transformers.TrainerCallback`` instances.
 		callback_factory: Optional ``f(adapter) -> list[TrainerCallback]`` for callbacks that need the
 		    loaded adapter, e.g. a task metric that decodes with the model's processor.
 	"""
 	from train_utils.vlm import build_adapter, prepare_vlm_for_training
 
-	vcfg = config.vlm_sft
+	grpo = config.trainer_type == "vlm_grpo"
+	vcfg = config.vlm_grpo if grpo else config.vlm_sft
 	adapter = build_adapter(config.model, max_image_side=vcfg.max_image_side, image_root=vcfg.image_root)
 	model, processor = adapter.load()
 	model = prepare_vlm_for_training(model, config.model)
-	dataset = VLMSFTDataset(config, processor)
+	dataset = (VLMGRPODataset if grpo else VLMSFTDataset)(config, processor)
 	callbacks = list(callbacks or []) + (callback_factory(adapter) if callback_factory else [])
 	trainer = build_trainer(config, model, processor, dataset, adapter=adapter, callbacks=callbacks)
 	trainer.train()
@@ -131,7 +132,7 @@ def run(config_path: str | Path) -> None:
 	"""
 	config: RunConfig = load_yaml_config(config_path)
 	logger.info("trainer_type=%s | model=%s | output_dir=%s", config.trainer_type, config.model.model_id, config.output_dir)
-	if config.trainer_type == "vlm_sft":
+	if config.trainer_type in ("vlm_sft", "vlm_grpo"):
 		run_vlm(config)
 		return
 

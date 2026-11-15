@@ -32,12 +32,14 @@ def _import_trainers() -> dict[str, type[BaseTrainer]]:
 	"""
 	from train_utils.trainers.dpo_trainer import DPOTrainer
 	from train_utils.trainers.sft_trainer import SFTTrainer
+	from train_utils.trainers.vlm_grpo_trainer import VLMGRPOTrainer
 	from train_utils.trainers.vlm_sft_trainer import VLMSFTTrainer
 
 	return {
 		"sft": SFTTrainer,
 		"dpo": DPOTrainer,
 		"vlm_sft": VLMSFTTrainer,
+		"vlm_grpo": VLMGRPOTrainer,
 	}
 
 
@@ -62,7 +64,7 @@ def build_trainer(
 		model: Model with LoRA adapters applied.
 		tokenizer: Matching tokenizer.
 		dataset: Dataset adapter for this run.
-		**kwargs: Trainer-specific extras (``vlm_sft`` takes ``adapter`` and ``callbacks``).
+		**kwargs: Trainer-specific extras (``vlm_sft`` and ``vlm_grpo`` take ``adapter`` and ``callbacks``).
 
 	Returns:
 		A fully initialised :class:`BaseTrainer` subclass.
