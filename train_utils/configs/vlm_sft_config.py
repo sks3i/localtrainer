@@ -25,6 +25,7 @@ class VLMSFTConfig:
 		    Normalized targets (e.g. 0-1000 coordinates) are unaffected by resizing.
 		save_merged: After training, merge the LoRA adapter into the base weights and save a full
 		    model (plus processor) to ``<output_dir>/merged`` so it loads with ``from_pretrained``.
+		resume_from_checkpoint: A ``checkpoint-N`` dir to resume (weights, optimizer, scheduler, step).
 	"""
 
 	train_file: str = ""
@@ -34,3 +35,4 @@ class VLMSFTConfig:
 	max_eval_samples: Optional[int] = 500
 	max_image_side: Optional[int] = 1024
 	save_merged: bool = True
+	resume_from_checkpoint: Optional[str] = None

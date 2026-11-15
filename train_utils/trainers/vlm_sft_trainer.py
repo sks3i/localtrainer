@@ -131,7 +131,7 @@ class VLMSFTTrainer(BaseTrainer):
 			len(train_dataset),
 			len(eval_dataset) if eval_dataset is not None else "N/A",
 		)
-		return _AnswerLossTrainer(
+		trainer = _AnswerLossTrainer(
 			model=self.model,
 			args=_training_arguments(self.config),
 			train_dataset=train_dataset,
@@ -140,6 +140,14 @@ class VLMSFTTrainer(BaseTrainer):
 			processing_class=self.tokenizer,
 			callbacks=self.callbacks,
 		)
+		resume = self.config.vlm_sft.resume_from_checkpoint
+		if resume:
+			# BaseTrainer.train() calls hf_trainer.train() with no arguments.
+			from functools import partial
+
+			logger.info("Resuming from %s", resume)
+			trainer.train = partial(trainer.train, resume_from_checkpoint=resume)
+		return trainer
 
 	def train(self) -> None:
 		super().train()
