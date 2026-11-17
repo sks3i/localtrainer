@@ -204,7 +204,7 @@ class VLMGRPOTrainer(BaseTrainer):
 
 	@torch.no_grad()
 	def evaluate(self, step: int) -> dict:
-		"""Greedy decode the dev prompts and average the reward (= accuracy for a 0/1 reward)."""
+		"""Greedy decode the dev prompts and average the success flag ("hit" if the reward reports one, else the reward)."""
 		c = self.cfg
 		self.model.eval()
 		texts = []
@@ -212,11 +212,13 @@ class VLMGRPOTrainer(BaseTrainer):
 			chunk = self.dev_rows[i : i + c.generation_batch_size]
 			texts += [self.adapter.decode(x) for x in self.adapter.sample(self.model, chunk, c.max_new_tokens, do_sample=False)]
 		scored = [self.reward_fn(r, t) for r, t in zip(self.dev_rows, texts)]
-		m = {"step": step, "dev/reward": sum(s["reward"] for s in scored) / len(scored)}
+		# A shaped reward reports task success as "hit"; dev numbers are about success, not shaping.
+		key = "hit" if "hit" in scored[0] else "reward"
+		m = {"step": step, "dev/reward": sum(s[key] for s in scored) / len(scored)}
 		groups: dict[str, list[float]] = {}
 		for r, s in zip(self.dev_rows, scored):
 			if r.get("group"):
-				groups.setdefault(r["group"], []).append(float(s["reward"]))
+				groups.setdefault(r["group"], []).append(float(s[key]))
 		for g, v in sorted(groups.items()):
 			m[f"dev/{g}"] = sum(v) / len(v)
 		logger.info("dev @ step %d: %s", step, {k: round(v, 4) if isinstance(v, float) else v for k, v in m.items()})
