@@ -66,6 +66,10 @@ class ModelConfig:
 		freeze_patterns: Substrings of parameter names to freeze in full fine-tuning (e.g. the
 		    vision tower). With LoRA everything outside the adapter is frozen anyway.
 		processor_kwargs: Extra kwargs for ``AutoProcessor.from_pretrained`` (e.g. image size limits).
+		upcast_trainable: Keep fully trained (non-LoRA) parameters, e.g. ``lora.modules_to_save``, in
+		    fp32 while the frozen weights stay bf16. bf16 has 8 bits of mantissa: an Adam step of
+		    lr 1e-5 changes a weight by ~1e-5 of its size, far below bf16's ~4e-3 spacing, so in bf16
+		    most small updates round to nothing. fp32 copies (mixed precision via autocast) keep them.
 	"""
 
 	model_id: str = "unsloth/Meta-Llama-3.1-8B-Instruct"
@@ -79,3 +83,4 @@ class ModelConfig:
 	vlm_adapter: str = "hf_chat"
 	freeze_patterns: list[str] = field(default_factory=list)
 	processor_kwargs: dict = field(default_factory=dict)
+	upcast_trainable: bool = False

@@ -49,6 +49,13 @@ def prepare_vlm_for_training(model: torch.nn.Module, cfg: ModelConfig) -> torch.
 				p.requires_grad_(False)
 				frozen += p.numel()
 		logger.info("Full fine-tuning; froze %.1fM params matching %s", frozen / 1e6, cfg.freeze_patterns)
+	if cfg.upcast_trainable:
+		n = 0
+		for p in model.parameters():
+			if p.requires_grad and p.dtype != torch.float32:
+				p.data = p.data.float()
+				n += p.numel()
+		logger.info("Upcast %.1fM trainable params to fp32 (master weights)", n / 1e6)
 	trainable, total = count_parameters(model)
 	logger.info("Trainable params: %.1fM / %.1fM (%.2f%%)", trainable / 1e6, total / 1e6, 100 * trainable / max(total, 1))
 	if trainable == 0:

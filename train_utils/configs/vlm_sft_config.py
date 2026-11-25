@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -26,6 +26,10 @@ class VLMSFTConfig:
 		save_merged: After training, merge the LoRA adapter into the base weights and save a full
 		    model (plus processor) to ``<output_dir>/merged`` so it loads with ``from_pretrained``.
 		resume_from_checkpoint: A ``checkpoint-N`` dir to resume (weights, optimizer, scheduler, step).
+		lr_overrides: ``{name substring: learning rate}`` for parameter groups that need their own
+		    rate, e.g. ``{"merger": 2e-5, "visual": 5e-6}`` to fine-tune a pretrained vision encoder
+		    gently while LoRA on the language model uses ``training.learning_rate``. A parameter takes
+		    the first matching key (dict order); the schedule scales every group alike.
 	"""
 
 	train_file: str = ""
@@ -36,3 +40,4 @@ class VLMSFTConfig:
 	max_image_side: Optional[int] = 1024
 	save_merged: bool = True
 	resume_from_checkpoint: Optional[str] = None
+	lr_overrides: dict = field(default_factory=dict)

@@ -50,6 +50,22 @@ class _AnswerLossTrainer(Trainer):
 		self.model_accepts_loss_kwargs = True
 		self.loss_is_scaled_for_ga = True
 
+	def create_optimizer(self):
+		overrides = getattr(self, "lr_overrides", None) or {}
+		if self.optimizer is None and overrides:
+			opt_cls, opt_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args, self.model)
+			groups: dict = {}
+			for name, p in self.model.named_parameters():
+				if not p.requires_grad:
+					continue
+				lr = next((v for k, v in overrides.items() if k in name), self.args.learning_rate)
+				groups.setdefault(lr, []).append(p)
+			for lr, ps in sorted(groups.items()):
+				logger.info("param group lr=%g: %.1fM params", lr, sum(p.numel() for p in ps) / 1e6)
+			self.optimizer = opt_cls([{"params": ps, "lr": lr, "weight_decay": self.args.weight_decay} for lr, ps in groups.items()], **opt_kwargs)
+			return self.optimizer
+		return super().create_optimizer()
+
 	def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
 		labels = inputs.pop("labels")
 		outputs = model(**inputs)
@@ -140,6 +156,7 @@ class VLMSFTTrainer(BaseTrainer):
 			processing_class=self.tokenizer,
 			callbacks=self.callbacks,
 		)
+		trainer.lr_overrides = dict(self.config.vlm_sft.lr_overrides)
 		resume = self.config.vlm_sft.resume_from_checkpoint
 		if resume:
 			# BaseTrainer.train() calls hf_trainer.train() with no arguments.
