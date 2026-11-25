@@ -33,7 +33,7 @@ def get_device() -> torch.device:
 def get_compute_dtype(prefer_bf16: bool = True) -> torch.dtype:
 	"""Return the best floating-point dtype for the current GPU.
 
-	Ampere and newer GPUs (including RTX 4090) support native bfloat16 via TF32.
+	Ampere and newer GPUs (including the Ada Lovelace RTX 4090) support native bfloat16.
 	Older GPUs fall back to float16 when ``prefer_bf16=True`` is requested but
 	unavailable.
 

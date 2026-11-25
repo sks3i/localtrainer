@@ -36,7 +36,7 @@ class TrainingArgs:
 		eval_steps: Evaluate every N optimizer steps (when eval dataset is provided).
 		save_total_limit: Keep only the N most recent checkpoints.
 		seed: Random seed for reproducibility.
-		bf16: Use bfloat16 mixed precision (recommended for RTX 4090 / Ampere).
+		bf16: Use bfloat16 mixed precision (recommended on Ampere and newer, e.g. the Ada Lovelace RTX 4090).
 		fp16: Use float16 mixed precision. Mutually exclusive with bf16.
 		gradient_checkpointing: Trade compute for VRAM by recomputing activations.
 		torch_compile: Enable torch.compile for potential throughput gain.

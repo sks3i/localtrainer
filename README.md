@@ -220,6 +220,6 @@ Set `report_to: none` to disable W&B for a run.
 | `model.use_unsloth` | `true` | 2× faster training, ~50% less VRAM |
 | `model.attn_implementation` | `flash_attention_2` | Faster attention via Unsloth kernels |
 | `model.quantization.load_in_4bit` | `true` | Fits large models in 24GB VRAM |
-| `training.bf16` | `true` | Native bfloat16 on Ampere (RTX 40xx) |
+| `training.bf16` | `true` | Native bfloat16 on Ampere and newer (RTX 30xx Ampere, RTX 40xx Ada Lovelace) |
 | `training.gradient_checkpointing` | `true` | Trades compute for VRAM |
 | `training.gradient_accumulation_steps` | `4`–`8` | Effective batch size without OOM |
